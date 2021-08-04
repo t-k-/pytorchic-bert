@@ -5,6 +5,7 @@
 
 from random import randint, shuffle
 from random import random as rand
+from datasets import load_dataset
 import fire
 
 import torch
@@ -18,42 +19,28 @@ import train
 
 from utils import set_seeds, get_device, get_random_word, truncate_tokens_pair
 
-# Input file format :
-# 1. One sentence per line. These should ideally be actual sentences,
-#    not entire paragraphs or arbitrary spans of text. (Because we use
-#    the sentence boundaries for the "next sentence prediction" task).
-# 2. Blank lines between documents. Document boundaries are needed
-#    so that the "next sentence prediction" task doesn't span between documents.
-
-def seek_random_offset(f, back_margin=2000):
-    """ seek random offset of file pointer """
-    f.seek(0, 2)
-    # we remain some amount of text to read
-    max_offset = f.tell() - back_margin
-    f.seek(randint(0, max_offset), 0)
-    f.readline() # throw away an incomplete sentence
-
 class SentPairDataLoader():
     """ Load sentence pair (sequential or random order) from corpus """
-    def __init__(self, file, batch_size, tokenize, max_len, short_sampling_prob=0.1, pipeline=[]):
+    def __init__(self, sentences, batch_size, tokenize, max_len, short_sampling_prob=0.1, pipeline=[]):
         super().__init__()
-        self.f_pos = open(file, "r", encoding='utf-8', errors='ignore') # for a positive sample
-        self.f_neg = open(file, "r", encoding='utf-8', errors='ignore') # for a negative (random) sample
+        self.sentences = sentences
+        self.tot_sentences = len(sentences)
         self.tokenize = tokenize # tokenize function
         self.max_len = max_len # maximum length of tokens
         self.short_sampling_prob = short_sampling_prob
         self.pipeline = pipeline
         self.batch_size = batch_size
 
-    def read_tokens(self, f, length, discard_last_and_restart=True):
+    def read_tokens(self, idx, length, non_empty=True):
         """ Read tokens from file pointer with limited length """
         tokens = []
         while len(tokens) < length:
-            line = f.readline()
-            if not line: # end of file
+            if idx >= self.tot_sentences:
                 return None
+            line = self.sentences[idx]
+            idx += 1
             if not line.strip(): # blank line (delimiter of documents)
-                if discard_last_and_restart:
+                if non_empty:
                     tokens = [] # throw all and restart
                     continue
                 else:
@@ -62,6 +49,7 @@ class SentPairDataLoader():
         return tokens
 
     def __iter__(self): # iterator to load data
+        now = 0
         while True:
             batch = []
             for i in range(self.batch_size):
@@ -73,13 +61,12 @@ class SentPairDataLoader():
 
                 is_next = rand() < 0.5 # whether token_b is next to token_a or not
 
-                tokens_a = self.read_tokens(self.f_pos, len_tokens, True)
-                seek_random_offset(self.f_neg)
-                f_next = self.f_pos if is_next else self.f_neg
-                tokens_b = self.read_tokens(f_next, len_tokens, False)
+                tokens_a = self.read_tokens(now, len_tokens, True)
+                next_idx = now + 1 if is_next else randint(0, self.tot_sentences)
+                tokens_b = self.read_tokens(next_idx, len_tokens, False)
+                now += 1
 
                 if tokens_a is None or tokens_b is None: # end of file
-                    self.f_pos.seek(0, 0) # reset file pointer
                     return
 
                 instance = (is_next, tokens_a, tokens_b)
@@ -193,7 +180,7 @@ class BertModel4Pretrain(nn.Module):
 
 def main(train_cfg='config/pretrain.json',
          model_cfg='config/bert_base.json',
-         data_file='../tbc/books_large_all.txt',
+         dataset_name='bookcorpus',
          model_file=None,
          data_parallel=True,
          vocab='../uncased_L-12_H-768_A-12/vocab.txt',
@@ -216,7 +203,10 @@ def main(train_cfg='config/pretrain.json',
                                     list(tokenizer.vocab.keys()),
                                     tokenizer.convert_tokens_to_ids,
                                     max_len)]
-    data_iter = SentPairDataLoader(data_file,
+    print('Loading dataset...')
+    sentences = load_dataset(dataset_name)['train'][:]['text']
+    print('Done.')
+    data_iter = SentPairDataLoader(sentences,
                                    cfg.batch_size,
                                    tokenize,
                                    max_len,

@@ -44,15 +44,21 @@ class Trainer(object):
         """ Train Loop """
         self.model.train() # train mode
         self.load(model_file, pretrain_file)
+        print('Load model to CUDA.')
         model = self.model.to(self.device)
-        if data_parallel: # use Data Parallelism with Multi-GPU
-            model = nn.DataParallel(model)
+        print('Done.')
+#        if data_parallel: # use Data Parallelism with Multi-GPU
+#            model = nn.DataParallel(model)
 
         global_step = 0 # global iteration steps regardless of epochs
         for e in range(self.cfg.n_epochs):
             loss_sum = 0. # the sum of iteration losses to get average loss in every epoch
             iter_bar = tqdm(self.data_iter, desc='Iter (loss=X.XXX)')
+            i = 0
             for i, batch in enumerate(iter_bar):
+                #print(len(batch))
+                #print(batch[0].shape)
+                #quit()
                 batch = [t.to(self.device) for t in batch]
 
                 self.optimizer.zero_grad()
