@@ -68,7 +68,8 @@ class Trainer(object):
 
                 global_step += 1
                 loss_sum += loss.item()
-                iter_bar.set_description('Iter (loss=%5.3f)'%loss.item())
+                iter_bar.set_description('Iter (loss=%5.3f, step=%d/%d)' %
+					(loss.item(), global_step, self.cfg.save_steps))
 
                 if global_step % self.cfg.save_steps == 0: # save
                     self.save(global_step)

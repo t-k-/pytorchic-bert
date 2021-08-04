@@ -204,6 +204,7 @@ def main(train_cfg='config/pretrain.json',
                                     tokenizer.convert_tokens_to_ids,
                                     max_len)]
     print('Loading dataset...')
+    #sentences = load_dataset(dataset_name)['train'][:1000]['text']
     sentences = load_dataset(dataset_name)['train'][:]['text']
     print('Done.')
     data_iter = SentPairDataLoader(sentences,
