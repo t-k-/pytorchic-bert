@@ -67,7 +67,8 @@ class Embeddings(nn.Module):
     def forward(self, x, seg):
         seq_len = x.size(1)
         pos = torch.arange(seq_len, dtype=torch.long, device=x.device)
-        pos = pos.unsqueeze(0).expand_as(x) # (S,) -> (B, S)
+        # (S) -unsqueeze-> (1, S) -expand-> (B, S)
+        pos = pos.unsqueeze(0).expand_as(x)
 
         e = self.tok_embed(x) + self.pos_embed(pos) + self.seg_embed(seg)
         return self.drop(self.norm(e))
