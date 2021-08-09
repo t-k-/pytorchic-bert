@@ -111,13 +111,17 @@ class Trainer(object):
         elif pretrain_file: # use pretrained transformer
             print('Loading the pretrained model from', pretrain_file)
             if pretrain_file.endswith('.ckpt'): # checkpoint file in tensorflow
+                print('this is a tensorflow checkpoint')
                 checkpoint.load_model(self.model.transformer, pretrain_file)
             elif pretrain_file.endswith('.pt'): # pretrain model file in pytorch
+                print('this is a pytorch saved state')
                 self.model.transformer.load_state_dict(
                     {key[12:]: value
                         for key, value in torch.load(pretrain_file).items()
                         if key.startswith('transformer')}
                 ) # load only transformer parts
+            else:
+                assert False
 
 
     def save(self, i):
